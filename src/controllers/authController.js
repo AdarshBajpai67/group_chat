@@ -7,13 +7,21 @@ const jwt=require('jsonwebtoken');
 const JWT_SECRET_KEY=process.env.JWT_SECRET
 
 exports.registerUser=async(req,res)=>{
-    const {username,password}=req.body;
+    const {username,password,userDigitalProfilePhoto}=req.body;
     try{
         if(!username||!password){
             res.status(400).json({message: 'Username and Passsword are required'});
         }
+        let userProfilePhoto = userDigitalProfilePhoto;
+
+        if (!userProfilePhoto) {
+            userProfilePhoto = '';
+        }
         const hashedPassword=await bcrypt.hash(password,10);
-        const user=await User.create({username,password:hashedPassword});
+        const user=await User.create({username,password:hashedPassword,userDigitalProfilePhoto:userProfilePhoto});
+        if(!userDigitalProfilePhoto){
+            user.userDigitalProfilePhoto=user.avatar;
+        }
         await user.save();
         // console.log('user created successfully',user);
         res.status(201).json({message: 'User created successfully',user});
@@ -22,7 +30,7 @@ exports.registerUser=async(req,res)=>{
             res.status(400).json({ message:'User with same credentials already exists.'});
         } else {
             // Other error (e.g., validation error, server issue)
-            // console.error('Error creating user:', err);
+            console.error('Error creating user:', err);
             res.status(500).json({ message: 'Internal Server Error' });
         }
     }
