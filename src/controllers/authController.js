@@ -35,7 +35,8 @@ exports.loginUser=async(req,res)=>{
         if(!user||await bcrypt.compare(password,user.password)){
             res.status(401).json({message: 'Invalid Credentials'});
         }
-        const token=jwt.sign({id:user._id},JWT_SECRET_KEY,{expiresIn:'24h'});  //for testing purpose it is set to 24hr, change to required time when deployed
+        const token=jwt.sign({id:user._id,username:username},JWT_SECRET_KEY,{expiresIn:'24h'});  //for testing purpose it is set to 24hr, change to required time when deployed
+        // console.log('User logged in successfully',token);
         res.status(200).json({message: 'User logged in successfully',token});
     }catch(err){
         console.log('Error logging in user:',err);
