@@ -47,7 +47,7 @@ exports.loginUser=async(req,res)=>{
         // console.log('User logged in successfully',token);
         res.status(200).json({message: 'User logged in successfully',token});
     }catch(err){
-        console.log('Error logging in user:',err);
+        // console.log('Error logging in user:',err);
         res.status(500).json({message: 'Internal Server Error'});
     }
 };
