@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Socket.IO Chat</title>
+  <style>
+    body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+    #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
+    #input:focus { outline: none; }
+    #form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+    #messages { list-style-type: none; margin: 0; padding: 0; }
+    #messages > li { padding: 0.5rem 1rem; }
+    #messages > li:nth-child(odd) { background: #efefef; }
+    .group-button { margin: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div id="groupButtonsContainer">
+    <h2>Available Groups</h2>
+    <!-- Group buttons will be dynamically added here -->
+  </div>
+  <ul id="messages"></ul>
+  <form id="form" action="">
+    <input id="input" autocomplete="off" /><button>Send</button>
+  </form>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      let counter = 0;
+      const token = 'YOUR_JWT_TOKEN'; // Replace with actual token
+      let currentGroupId = ''; // Variable to store the current group ID
+
+      const socket = io('http://localhost:3000', { // Adjust the URL to your server
+        auth: { token }
+      });
+
+      const form = document.getElementById('form');
+      const input = document.getElementById('input');
+      const messages = document.getElementById('messages');
+      const groupButtonsContainer = document.getElementById('groupButtonsContainer');
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (input.value && currentGroupId) {
+          const clientOffset = `${socket.id}-${counter++}`;
+          socket.emit('chat message', input.value, currentGroupId, clientOffset, () => {
+            console.log('Message delivered');
+          });
+          input.value = '';
+        } else if (!currentGroupId) {
+          alert('Please join a group before sending messages.');
+        }
+      });
+
+      socket.on('chat message', function(msg, groupId, serverOffset) {
+        if (groupId === currentGroupId) {
+          const item = document.createElement('li');
+          item.textContent = msg;
+          messages.appendChild(item);
+          window.scrollTo(0, document.body.scrollHeight);
+          socket.auth.serverOffset = serverOffset;
+        }
+      });
+
+      socket.on('previousMessages', function(msgs) {
+        msgs.forEach(msg => {
+          const item = document.createElement('li');
+          item.textContent = `${msg.user_id}: ${msg.content} (${new Date(msg.timestamp).toLocaleTimeString()})`;
+          messages.appendChild(item);
+        });
+      });
+
+      // Fetch groups from server and dynamically create group buttons
+      fetch('/group/getAllGroups', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+        .then(response => response.json())
+        .then(data => {
+          data.groups.forEach(group => {
+            const button = document.createElement('button');
+            button.classList.add('group-button');
+            button.textContent = `Join ${group.name}`;
+            button.addEventListener('click', () => joinGroup(group._id, group.name));
+            groupButtonsContainer.appendChild(button);
+          });
+        })
+        .catch(error => console.error('Error fetching groups:', error));
+
+      function joinGroup(groupId, groupName) {
+        if (currentGroupId) {
+          leaveGroup(currentGroupId); // Leave the current group if already joined
+        }
+        currentGroupId = groupId;
+        socket.emit('joinGroup', groupId);
+        console.log(`Joined group ${groupName}`);
+      }
+
+      function leaveGroup(groupId) {
+        socket.emit('leaveGroup', groupId);
+        console.log(`Left group ${groupId}`);
+        currentGroupId = '';
+        messages.innerHTML = ''; // Clear previous messages when leaving a group
+      }
+    });
+  </script>
+</body>
+</html>

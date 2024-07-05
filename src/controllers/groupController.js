@@ -6,8 +6,8 @@ exports.createGroup = async (req, res) => {
         if(!name){
             return res.status(400).json({message:'Name is required'});
         }   
-        console.log("req.user._id",req.user._id);
-        console.log("req.user.id",req.user.id)
+        // console.log("req.user._id",req.user._id);
+        // console.log("req.user.id",req.user.id)
         const group=await Group.create({name,description,admin:req.user.id,members:[req.user.id]});
         await group.save();
         res.status(201).json({message:'Group created successfully',group});
