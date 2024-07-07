@@ -25,15 +25,15 @@ app.use('/auth',authRoutes);
 app.use('/group',groupRoutes);
 app.use('/user',userRoutes);
 
-// app.get('/',(req,res)=>{
-//     res.send('<h1>server is up and running</h1>');
-// })
-
-app.get('/',(req,res)=>{
-    res.sendFile(path.join(__dirname,'test.html'))
+app.get('/check',(req,res)=>{
+    res.send('<h1>server is up and running</h1>');
 })
 
-io.on('connection',(socket)=>{
+app.get('/',(req,res)=>{
+    res.sendFile(path.join(__dirname,'index.html'))
+})
+
+io.on('connection',async (socket)=>{
     console.log(`a user connected by id: ${socket.id}`);
     socket.on('chat message',(msg)=>{
         console.log('message: '+msg);
@@ -47,10 +47,6 @@ io.on('connection',(socket)=>{
 
 const PORT=process.env.PORT || 8000;
 
-// app.listen(PORT,()=>{
-//     console.log(`Server started on port ${PORT}`);
-// })
-
 server.listen(PORT,()=>{
-    console.log(`Server started on port ${PORT}`);
+    console.log(`Server started and running on port ${PORT}`);
 })
