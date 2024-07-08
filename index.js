@@ -6,6 +6,9 @@ const path=require('path');
 const {Server}=require('socket.io');
 const sqlite3=require('sqlite3');
 const {open}=require('sqlite');
+const {availableParallelism}=require('node:os');
+const cluster=require('node:cluster');
+const {createAdapter,setupPrimary} = require('@socket.io/cluster-adapter');
 
 const connectToDB=require('./src/config/db');
 const connectToCloudinary=require('./src/config/cloudinary');
@@ -13,7 +16,16 @@ const connectToCloudinary=require('./src/config/cloudinary');
 const authRoutes=require('./src/routes/authRoutes');
 const groupRoutes=require('./src/routes/groupRoutes');
 const userRoutes=require('./src/routes/userRoutes');
-const { access } = require('fs');
+
+if(cluster.isPrimary){
+  const numProcesses=availableParallelism();
+  for(let i=0; i<numProcesses; i++){
+    cluster.fork({
+      PORT:3000+i
+    });
+  }
+  return setupPrimary();
+}
 
 async function main(){
   const db=await open({
@@ -36,7 +48,8 @@ async function main(){
       cors:{
           origin:'*',
       },
-      connectionStateRecovery:true
+      connectionStateRecovery:true,
+      adapter:createAdapter()
   });
   
   app.use(express.json());
@@ -90,10 +103,10 @@ async function main(){
   
   })
   
-  const PORT=process.env.PORT || 8000;
+  const port=process.env.PORT;
   
-  server.listen(PORT,()=>{
-      console.log(`Server started and running on port ${PORT}`);
+  server.listen(port,()=>{
+      console.log(`Server started and running on port ${port}`);
   })
 
 }
