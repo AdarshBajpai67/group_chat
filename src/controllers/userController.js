@@ -10,7 +10,7 @@ exports.getAllUsers=async (req,res)=>{
         res.status(200).json({message:'All users',users});
     }catch(err){
         console.error('Error fetching users:',err);
-        res.status(500).json({message:'Internal Server Error'});
+        res.status(500).json({message:'Internal Server Errorr'});
     }
 }
 

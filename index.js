@@ -10,7 +10,7 @@ const {availableParallelism}=require('node:os');
 const cluster=require('node:cluster');
 const {createAdapter,setupPrimary} = require('@socket.io/cluster-adapter');
 
-const connectToDB=require('./src/config/db');
+const connectToDB=require('./src/config/mongoDB');
 const connectToCloudinary=require('./src/config/cloudinary');
 
 const authRoutes=require('./src/routes/authRoutes');
