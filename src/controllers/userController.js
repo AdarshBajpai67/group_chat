@@ -36,3 +36,16 @@ exports.getAllUsersInGroup=async (req,res)=>{
     }
 }
 
+
+exports.getUserGroups=async(req,res)=>{
+    const userId=req.user.id;
+    try{
+        const groups=await Group.find({members:userId});
+        const users=await User.find({
+            _id:{$ne:userId}
+        });
+        res.json({groups,users});
+    }catch(err){
+        res.status(500).json({error:err.message});
+    }
+}

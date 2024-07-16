@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Socket.IO chat</title>
+    <style>
+      body {
+        margin: 0;
+        padding-bottom: 3rem;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+      }
+      #form {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 0.25rem;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        height: 3rem;
+        box-sizing: border-box;
+        backdrop-filter: blur(10px);
+      }
+      #input {
+        border: none;
+        padding: 0 1rem;
+        flex-grow: 1;
+        border-radius: 2rem;
+        margin: 0.25rem;
+      }
+      #input:focus {
+        outline: none;
+      }
+      #form > button {
+        background: #333;
+        border: none;
+        padding: 0 1rem;
+        margin: 0.25rem;
+        border-radius: 3px;
+        outline: none;
+        color: #fff;
+      }
+      #messages {
+        list-style-type: none;
+        margin: 0;
+        padding: 0;
+      }
+      #messages > li {
+        padding: 0.5rem 1rem;
+      }
+      #messages > li:nth-child(odd) {
+        background: #efefef;
+      }
+      #groups,
+      #direct-messages {
+        margin-bottom: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="groups"></div>
+    <div id="direct-messages"></div>
+    <ul id="messages"></ul>
+    <form id="form" action="">
+      <input id="input" autocomplete="off" />
+      <button type="submit">Send</button>
+      <button type="button" id="toggle-btn">Disconnect</button>
+    </form>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      var counter = 0;
+      const token = localStorage.getItem("token");
+      const socket = io({
+        auth: {
+          token: token,
+          serverOffset: 0,
+        },
+        ackTimeout: 10000,
+        retries: 3,
+      });
+
+      const form = document.getElementById("form");
+      const input = document.getElementById("input");
+      const messages = document.getElementById("messages");
+      var toggleBtn = document.getElementById("toggle-btn");
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        console.log("form submitted: send button clicked", input.value);
+        if (input.value) {
+          var clientOffset = `${socket.id}-${counter++}`;
+          const groupSelect = document.getElementById("group-select");
+          const userSelect = document.getElementById("direct-select");
+          const groupId = groupSelect ? groupSelect.value : null; // Get selected group
+          const userId = userSelect ? userSelect.value : null; // Get selected user
+          socket.emit(
+            "chat message",
+            input.value,
+            groupId,
+            userId,
+            clientOffset
+          );
+          input.value = "";
+        }
+      });
+
+      socket.on("chat message", function (msg, serverOffset) {
+        var item = document.createElement("li");
+        item.textContent = msg;
+        messages.appendChild(item);
+        window.scrollTo(0, document.body.scrollHeight);
+        socket.auth.serverOffset = serverOffset;
+      });
+
+      toggleBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (socket.connected) {
+          toggleBtn.innerText = "Connect";
+          socket.disconnect();
+        } else {
+          toggleBtn.innerText = "Disconnect";
+          socket.connect();
+        }
+      });
+
+      // Fetch groups and direct messages on load
+      window.onload = function () {
+        fetch("/user/getUserGroups", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            // Display groups and direct messages to the user
+            console.log(data);
+            const groupsDiv = document.getElementById("groups");
+            const directMessagesDiv =
+              document.getElementById("direct-messages");
+
+            // Create groups dropdown
+            const groupSelect = document.createElement("select");
+            groupSelect.id = "group-select";
+            if (data.groups && Array.isArray(data.groups)) {
+              data.groups.forEach((group) => {
+                const option = document.createElement("option");
+                option.value = group.id;
+                option.text = group.name;
+                groupSelect.appendChild(option);
+              });
+            }
+            groupsDiv.appendChild(groupSelect);
+
+            // Create direct messages dropdown
+            const directSelect = document.createElement("select");
+            directSelect.id = "direct-select";
+            if (data.directMessages && Array.isArray(data.directMessages)) {
+              data.directMessages.forEach((dm) => {
+                const option = document.createElement("option");
+                option.value = dm.id;
+                option.text = dm.username;
+                directSelect.appendChild(option);
+              });
+            }
+            directMessagesDiv.appendChild(directSelect);
+          })
+          .catch((err) =>
+            console.error("Error fetching groups and direct messages:", err)
+          );
+      };
+    </script>
+  </body>
+</html>
