@@ -100,78 +100,96 @@ async function main(){
     }
   })
   
-  io.on('connection',async (socket)=>{
-    if(!socket.user){
+  io.on('connection', async (socket) => {
+    if (!socket.user) {
       socket.disconnect();
       return;
     }
-
-    console.log(`user connected : ${socket.user.username}`);
-
-    socket.on('chat message',async (msg,groupId,userId,clientOffset,callback)=>{
+  
+    console.log(`User connected: ${socket.user.username}`);
+  
+    socket.on('chat message', async (msg, groupId, userId, clientOffset, callback) => {
       console.log('Received message:', msg, 'GroupId:', groupId, 'UserId:', userId, 'ClientOffset:', clientOffset);
       if (typeof callback !== 'function') {
         callback = () => {};
       }
-
-      let result;
-        if(groupId){
-          try{
-            const isValidGroupId = mongoose.Types.ObjectId.isValid(groupId);
-            if (!isValidGroupId) {
-              return callback('Invalid groupId');
-            }
-            const group = await Group.findById(isValidGroupId);
-            if(!group.members.includes(socket.user.id)){
-              return callback(`${socket.user.username} is not a member of this ${group.name}`);
-            }
-            result=await db.run('INSERT INTO messages(message,client_offset,groupId) VALUES(?, ?,?)',msg,clientOffset,groupId);
-            console.log('Message inserted into DB:', result);
-            io.to(groupId).emit('chat message',msg, result.lastID);
-            console.log('Message sent to group:', groupId);
-            callback();
-          }catch(err){
-            console.log('Group Messaging Error: ' + err.message);
-            callback('Error Sending Message');
-          }
-        }else if(userId){
-          try{
-            const user=await User.findById(userId);
-            if(!user){
-              return callback('User not found');
-            } 
-            result=await db.run('INSERT INTO messages(message,client_offset,sender_id,receiver_id) VALUES(?,?,?,?)',msg,clientOffset,socket.user.id,userId);
-            console.log('Message inserted into DB:', result);
-            io.to(userId).emit('chat message',msg,result.lastID);
-            console.log('Message sent to user:', userId);
-            callback();
-        }catch(err){
-          console,log('Direct Message Error:',err);
-          callback('Error Sending Message');
+  
+      // Validate groupId
+      if (groupId) {
+        if (!mongoose.Types.ObjectId.isValid(groupId)) {
+          console.log('Invalid groupId received:', groupId);
+          return callback('Invalid groupId');
         }
-      }else{
-        callback('Invalid Message: neither to user nor group');
-      }
-      })
-
-      if (!socket.recovered) {
         try {
-          await db.each('SELECT id, message FROM messages WHERE id > ?', [socket.handshake.auth.serverOffset], (err, row) => {
-            if (err) {
-              console.log(err);
-            } else {
-              console.log('Sending previous message:', row.message, 'with ID:', row.id);
-              socket.emit('chat message', row.message, row.id);
-            }
-          });
+          const group = await Group.findById(groupId);
+          if (!group) {
+            console.log('Group not found for id:', groupId);
+            return callback('Group not found');
+          }
+          if (!group.members.includes(socket.user.id)) {
+            console.log(`${socket.user.username} is not a member of group ${group.name}`);
+            return callback(`${socket.user.username} is not a member of this group`);
+          }
+          const result = await db.run(
+            'INSERT INTO messages (message, client_offset, groupId, sender_id) VALUES (?, ?, ?, ?)',
+            msg, clientOffset, groupId, socket.user.id
+          );
+          console.log('Message inserted into DB:', result);
+          io.to(groupId).emit('chat message', msg, result.lastID);
+          console.log('Message sent to group:', groupId);
+          callback();
         } catch (err) {
-          console.log(err);
+          console.log('Group Messaging Error:', err.message);
+          callback('Error sending message');
         }
+      } else if (userId) {
+        // Validate userId
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+          console.log('Invalid userId received:', userId);
+          return callback('Invalid userId');
+        }
+        try {
+          const user = await User.findById(userId);
+          if (!user) {
+            console.log('User not found for id:', userId);
+            return callback('User not found');
+          }
+          const result = await db.run(
+            'INSERT INTO messages (message, client_offset, sender_id, receiver_id) VALUES (?, ?, ?, ?)',
+            msg, clientOffset, socket.user.id, userId
+          );
+          console.log(`Message inserted into DB: Message ID = ${result.lastID}, Changes = ${result.changes}`);
+          io.to(userId).emit('chat message', msg, result.lastID);
+          console.log('Message sent to user:', userId);
+          callback();
+        } catch (err) {
+          console.log('Direct Message Error:', err.message);
+          callback('Error sending message');
+        }
+      } else {
+        console.log('Invalid message: neither groupId nor userId provided');
+        callback('Invalid message: neither to user nor group');
       }
-
-      socket.on('disconnect',()=>{
-          console.log('user disconnected');
-      })
+    });
+  
+    if (!socket.recovered) {
+      try {
+        await db.each('SELECT id, message FROM messages WHERE id > ?', [socket.handshake.auth.serverOffset], (err, row) => {
+          if (err) {
+            console.log('Error fetching previous messages:', err.message);
+          } else {
+            console.log('Sending previous message:', row.message, 'with ID:', row.id);
+            socket.emit('chat message', row.message, row.id);
+          }
+        });
+      } catch (err) {
+        console.log('Error in message recovery:', err.message);
+      }
+    }
+  
+    socket.on('disconnect', () => {
+      console.log('User disconnected');
+    });
   
   })
   

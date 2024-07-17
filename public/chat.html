@@ -92,8 +92,19 @@
           var clientOffset = `${socket.id}-${counter++}`;
           const groupSelect = document.getElementById("group-select");
           const userSelect = document.getElementById("direct-select");
-          const groupId = groupSelect ? groupSelect.value : null; // Get selected group
-          const userId = userSelect ? userSelect.value : null; // Get selected user
+          const groupId = groupSelect ? groupSelect.value : null;
+          const userId = userSelect ? userSelect.value : null;
+          console.log(
+            `GroupId: ${groupId}, UserId: ${userId}, ClientOffset: ${clientOffset}`
+          );
+          if (groupId && groupId === "true") {
+            console.error("Invalid groupId received from client");
+            return;
+          }
+          if (userId && userId === "true") {
+            console.error("Invalid userId received from client");
+            return;
+          }
           socket.emit(
             "chat message",
             input.value,
@@ -146,7 +157,7 @@
             if (data.groups && Array.isArray(data.groups)) {
               data.groups.forEach((group) => {
                 const option = document.createElement("option");
-                option.value = group.id;
+                option.value = group._id;
                 option.text = group.name;
                 groupSelect.appendChild(option);
               });
@@ -156,11 +167,11 @@
             // Create direct messages dropdown
             const directSelect = document.createElement("select");
             directSelect.id = "direct-select";
-            if (data.directMessages && Array.isArray(data.directMessages)) {
-              data.directMessages.forEach((dm) => {
+            if (data.users && Array.isArray(data.users)) {
+              data.users.forEach((user) => {
                 const option = document.createElement("option");
-                option.value = dm.id;
-                option.text = dm.username;
+                option.value = user._id;
+                option.text = user.username;
                 directSelect.appendChild(option);
               });
             }
