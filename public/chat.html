@@ -71,6 +71,21 @@
     <script>
       var counter = 0;
       const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = "/index.html";
+      }
+
+      // Function to check token expiration
+      function isTokenExpired(token) {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        return payload.exp * 1000 < Date.now();
+      }
+
+      if (isTokenExpired(token)) {
+        localStorage.removeItem("token");
+        alert("Session expired. Please log in again.");
+        window.location.href = "/index.html";
+      }
       const socket = io({
         auth: {
           token: token,
@@ -97,20 +112,21 @@
           console.log(
             `GroupId: ${groupId}, UserId: ${userId}, ClientOffset: ${clientOffset}`
           );
-          if (groupId && groupId === "true") {
-            console.error("Invalid groupId received from client");
-            return;
-          }
-          if (userId && userId === "true") {
-            console.error("Invalid userId received from client");
+          if ((groupId && userId) || (!groupId && !userId)) {
+            alert("Please select either a group or a user, not both.");
             return;
           }
           socket.emit(
             "chat message",
             input.value,
-            groupId,
-            userId,
-            clientOffset
+            groupId || null,
+            userId || null,
+            clientOffset,
+            (err) => {
+              if (err) {
+                alert(err);
+              }
+            }
           );
           input.value = "";
         }
@@ -134,7 +150,6 @@
           socket.connect();
         }
       });
-
       // Fetch groups and direct messages on load
       window.onload = function () {
         fetch("/user/getUserGroups", {
@@ -145,8 +160,6 @@
         })
           .then((response) => response.json())
           .then((data) => {
-            // Display groups and direct messages to the user
-            console.log(data);
             const groupsDiv = document.getElementById("groups");
             const directMessagesDiv =
               document.getElementById("direct-messages");
@@ -154,6 +167,7 @@
             // Create groups dropdown
             const groupSelect = document.createElement("select");
             groupSelect.id = "group-select";
+
             if (data.groups && Array.isArray(data.groups)) {
               data.groups.forEach((group) => {
                 const option = document.createElement("option");
@@ -176,6 +190,29 @@
               });
             }
             directMessagesDiv.appendChild(directSelect);
+
+            // Attach event listeners AFTER the elements are created
+            groupSelect.addEventListener("change", function () {
+              if (this.value) {
+                directSelect.value = ""; // Clear the user selection
+                socket.emit('select group', this.value, (err) => {
+                  if (err) {
+                    alert(err);
+                  }
+                });
+              }
+            });
+
+            directSelect.addEventListener("change", function () {
+              if (this.value) {
+                groupSelect.value = ""; // Clear the group selection
+                socket.emit('select user', this.value, (err) => {
+                  if (err) {
+                    alert(err);
+                  }
+                });
+              }
+            });
           })
           .catch((err) =>
             console.error("Error fetching groups and direct messages:", err)

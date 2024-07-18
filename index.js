@@ -107,68 +107,99 @@ async function main(){
     }
   
     console.log(`User connected: ${socket.user.username}`);
+
+    const validateAndFetch = async (type, id) => {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        console.log(`Invalid ${type} ID received:`, id);
+        throw new Error(`Invalid ${type} ID`);
+      }
+      if (type === 'group') {
+        const group = await Group.findById(id);
+        if (!group) {
+          console.log(`Group not found for ID:`, id);
+          throw new Error('Group not found');
+        }
+        if (!group.members.includes(socket.user._id)) {
+          console.log(`${socket.user.username} is not a member of group ${group.name}`);
+          throw new Error(`${socket.user.username} is not a member of this group`);
+        }
+        return group;
+      } else if (type === 'user') {
+        const user = await User.findById(id);
+        if (!user) {
+          console.log(`User not found for ID:`, id);
+          throw new Error('User not found');
+        }
+        return user;
+      }
+    };
+
+    socket.selectedGroup=null;
+    socket.selectedUser=null;
+
+    socket.on('select group', async (groupId, callback) => {
+      try {
+        const group = await validateAndFetch('group', groupId);
+        socket.selectedGroup = groupId;
+        socket.selectedUser = null;
+        socket.join(groupId);
+        console.log(`Group Selected: ${group.name}, socket.selectedGroup: ${socket.selectedGroup}`);
+        callback();
+      } catch (error) {
+        callback(error.message);
+      }
+    });
+
+    socket.on('select user', async (userId, callback) => {
+      try {
+        const user = await validateAndFetch('user', userId);
+        socket.selectedUser = userId;
+        socket.selectedGroup = null;
+        socket.join(userId);
+        console.log(`User Selected: ${user.username}, socket.selectedUser: ${socket.selectedUser}`);
+        callback();
+      } catch (error) {
+        callback(error.message);
+      }
+    });
   
-    socket.on('chat message', async (msg, groupId, userId, clientOffset, callback) => {
-      console.log('Received message:', msg, 'GroupId:', groupId, 'UserId:', userId, 'ClientOffset:', clientOffset);
+    socket.on('chat message', async (msg, clientOffset, callback) => {
+      console.log('Received message:', msg, 'ClientOffset:', clientOffset);
       if (typeof callback !== 'function') {
         callback = () => {};
       }
   
-      // Validate groupId
-      if (groupId) {
-        if (!mongoose.Types.ObjectId.isValid(groupId)) {
-          console.log('Invalid groupId received:', groupId);
-          return callback('Invalid groupId');
-        }
+      if (socket.selectedGroup) {
         try {
-          const group = await Group.findById(groupId);
-          if (!group) {
-            console.log('Group not found for id:', groupId);
-            return callback('Group not found');
-          }
-          if (!group.members.includes(socket.user.id)) {
-            console.log(`${socket.user.username} is not a member of group ${group.name}`);
-            return callback(`${socket.user.username} is not a member of this group`);
-          }
           const result = await db.run(
             'INSERT INTO messages (message, client_offset, groupId, sender_id) VALUES (?, ?, ?, ?)',
-            msg, clientOffset, groupId, socket.user.id
+            msg, clientOffset, socket.selectedGroup, socket.user._id
           );
           console.log('Message inserted into DB:', result);
-          io.to(groupId).emit('chat message', msg, result.lastID);
-          console.log('Message sent to group:', groupId);
+          io.to(socket.selectedGroup).emit('chat message', msg, result.lastID);
+          console.log('Message sent to group:', socket.selectedGroup);
           callback();
         } catch (err) {
           console.log('Group Messaging Error:', err.message);
           callback('Error sending message');
         }
-      } else if (userId) {
-        // Validate userId
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-          console.log('Invalid userId received:', userId);
-          return callback('Invalid userId');
-        }
+      } else if (socket.selectedUser) {
         try {
-          const user = await User.findById(userId);
-          if (!user) {
-            console.log('User not found for id:', userId);
-            return callback('User not found');
-          }
           const result = await db.run(
             'INSERT INTO messages (message, client_offset, sender_id, receiver_id) VALUES (?, ?, ?, ?)',
-            msg, clientOffset, socket.user.id, userId
+            msg, clientOffset, socket.user._id, socket.selectedUser
           );
           console.log(`Message inserted into DB: Message ID = ${result.lastID}, Changes = ${result.changes}`);
-          io.to(userId).emit('chat message', msg, result.lastID);
-          console.log('Message sent to user:', userId);
+          io.to(socket.selectedUser).emit('chat message', msg, result.lastID);
+          console.log('Message sent to user:', socket.selectedUser);
           callback();
         } catch (err) {
           console.log('Direct Message Error:', err.message);
           callback('Error sending message');
         }
       } else {
-        console.log('Invalid message: neither groupId nor userId provided');
-        callback('Invalid message: neither to user nor group');
+        console.log('Invalid message: neither group nor user selected');
+        callback('Invalid message: neither group nor user selected');
       }
     });
   

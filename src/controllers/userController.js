@@ -38,6 +38,7 @@ exports.getAllUsersInGroup=async (req,res)=>{
 
 
 exports.getUserGroups=async(req,res)=>{
+    console.log("Fetching user groups");
     const userId=req.user.id;
     try{
         const groups=await Group.find({members:userId});
