@@ -56,11 +56,26 @@
       #direct-messages {
         margin-bottom: 1rem;
       }
+      select {
+        margin: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 4px;
+      }
     </style>
   </head>
   <body>
-    <div id="groups"></div>
-    <div id="direct-messages"></div>
+    <div id="groups">
+      <label for="groupSelect">Groups:</label>
+      <select id="groupSelect">
+        <option value="">Select a group</option>
+      </select>
+    </div>
+    <div id="direct-messages">
+      <label for="userSelect">Direct Messages:</label>
+      <select id="userSelect">
+        <option value="">Select a user</option>
+      </select>
+    </div>
     <ul id="messages"></ul>
     <form id="form" action="">
       <input id="input" autocomplete="off" />
@@ -70,12 +85,14 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
       var counter = 0;
+      let selectedGroup = null;
+      let selectedUser = null;
       const token = localStorage.getItem("token");
+
       if (!token) {
         window.location.href = "/index.html";
       }
 
-      // Function to check token expiration
       function isTokenExpired(token) {
         const payload = JSON.parse(atob(token.split(".")[1]));
         return payload.exp * 1000 < Date.now();
@@ -86,6 +103,7 @@
         alert("Session expired. Please log in again.");
         window.location.href = "/index.html";
       }
+
       const socket = io({
         auth: {
           token: token,
@@ -98,126 +116,143 @@
       const form = document.getElementById("form");
       const input = document.getElementById("input");
       const messages = document.getElementById("messages");
-      var toggleBtn = document.getElementById("toggle-btn");
+      const toggleBtn = document.getElementById("toggle-btn");
+      const groupSelect = document.getElementById("groupSelect");
+      const userSelect = document.getElementById("userSelect");
 
       form.addEventListener("submit", function (e) {
         e.preventDefault();
-        console.log("form submitted: send button clicked", input.value);
         if (input.value) {
-          var clientOffset = `${socket.id}-${counter++}`;
-          const groupSelect = document.getElementById("group-select");
-          const userSelect = document.getElementById("direct-select");
-          const groupId = groupSelect ? groupSelect.value : null;
-          const userId = userSelect ? userSelect.value : null;
-          console.log(
-            `GroupId: ${groupId}, UserId: ${userId}, ClientOffset: ${clientOffset}`
-          );
-          if ((groupId && userId) || (!groupId && !userId)) {
-            alert("Please select either a group or a user, not both.");
-            return;
-          }
-          socket.emit(
-            "chat message",
-            input.value,
-            groupId || null,
-            userId || null,
-            clientOffset,
-            (err) => {
-              if (err) {
-                alert(err);
+          if (selectedGroup || selectedUser) {
+            socket.emit(
+              "chat message",
+              input.value,
+              `${socket.id}-${counter++}`,
+              (error) => {
+                if (error) {
+                  console.error(error);
+                  alert("Error sending message: " + error);
+                } else {
+                  input.value = "";
+                }
               }
-            }
-          );
-          input.value = "";
+            );
+          } else {
+            alert("Please select a group or user to send a message.");
+          }
         }
       });
 
-      socket.on("chat message", function (msg, serverOffset) {
-        var item = document.createElement("li");
+      toggleBtn.addEventListener("click", function () {
+        if (toggleBtn.innerHTML == "Connect") {
+          window.location.reload();
+        } else if (toggleBtn.innerHTML == "Disconnect") {
+          socket.disconnect();
+          toggleBtn.innerHTML = "Connect";
+        }
+      });
+
+      socket.on("chat message", function (msg, clientOffset) {
+        const currentCounter = counter++;
+        if (currentCounter == clientOffset) {
+          console.log("Duplicated message detected");
+          return;
+        }
+        const item = document.createElement("li");
         item.textContent = msg;
         messages.appendChild(item);
         window.scrollTo(0, document.body.scrollHeight);
-        socket.auth.serverOffset = serverOffset;
       });
 
-      toggleBtn.addEventListener("click", function (e) {
-        e.preventDefault();
-        if (socket.connected) {
-          toggleBtn.innerText = "Connect";
-          socket.disconnect();
-        } else {
-          toggleBtn.innerText = "Disconnect";
-          socket.connect();
+      socket.on("disconnect", () => {
+        console.log("User disconnected");
+      });
+
+      function selectGroup(groupId) {
+        selectedGroup = groupId;
+        selectedUser = null; // Clear the selected user if a group is selected
+        console.log(`Group Selected: ${groupId}`);
+      }
+
+      function selectUser(userId) {
+        selectedUser = userId;
+        selectedGroup = null; //Clear the selected group if a user is selected
+        console.log(`User Selected: ${userId}`);
+      }
+
+      groupSelect.addEventListener("change", function () {
+        const selectedGroupId = groupSelect.value;
+        if (selectedGroupId) {
+          selectGroup(selectedGroupId);
+          socket.emit("select group", selectedGroupId, (error) => {
+            if (error) {
+              alert("Error: " + error);
+            }
+          });
         }
       });
-      // Fetch groups and direct messages on load
-      window.onload = function () {
-        fetch("/user/getUserGroups", {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+
+      userSelect.addEventListener("change", function () {
+        const selectedUserId = userSelect.value;
+        if (selectedUserId) {
+          selectUser(selectedUserId);
+          socket.emit("select user", selectedUserId, (error) => {
+            if (error) {
+              alert("Error: " + error);
+            }
+          });
+        }
+      });
+
+      fetch("/user/getUserGroups", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(
+              "Network response was not ok " + response.statusText
+            );
+          }
+          return response.json();
         })
-          .then((response) => response.json())
-          .then((data) => {
-            const groupsDiv = document.getElementById("groups");
-            const directMessagesDiv =
-              document.getElementById("direct-messages");
+        .then((groups) => {
+          groups.forEach((group) => {
+            const option = document.createElement("option");
+            option.value = group._id;
+            option.textContent = group.name;
+            groupSelect.appendChild(option);
+          });
+        })
+        .catch((error) => {
+          console.error("Error fetching user groups:", error);
+        });
 
-            // Create groups dropdown
-            const groupSelect = document.createElement("select");
-            groupSelect.id = "group-select";
-
-            if (data.groups && Array.isArray(data.groups)) {
-              data.groups.forEach((group) => {
-                const option = document.createElement("option");
-                option.value = group._id;
-                option.text = group.name;
-                groupSelect.appendChild(option);
-              });
-            }
-            groupsDiv.appendChild(groupSelect);
-
-            // Create direct messages dropdown
-            const directSelect = document.createElement("select");
-            directSelect.id = "direct-select";
-            if (data.users && Array.isArray(data.users)) {
-              data.users.forEach((user) => {
-                const option = document.createElement("option");
-                option.value = user._id;
-                option.text = user.username;
-                directSelect.appendChild(option);
-              });
-            }
-            directMessagesDiv.appendChild(directSelect);
-
-            // Attach event listeners AFTER the elements are created
-            groupSelect.addEventListener("change", function () {
-              if (this.value) {
-                directSelect.value = ""; // Clear the user selection
-                socket.emit('select group', this.value, (err) => {
-                  if (err) {
-                    alert(err);
-                  }
-                });
-              }
-            });
-
-            directSelect.addEventListener("change", function () {
-              if (this.value) {
-                groupSelect.value = ""; // Clear the group selection
-                socket.emit('select user', this.value, (err) => {
-                  if (err) {
-                    alert(err);
-                  }
-                });
-              }
-            });
-          })
-          .catch((err) =>
-            console.error("Error fetching groups and direct messages:", err)
-          );
-      };
+      fetch("/user/getAllUsers", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(
+              "Network response was not ok " + response.statusText
+            );
+          }
+          return response.json();
+        })
+        .then((users) => {
+          users.forEach((user) => {
+            const option = document.createElement("option");
+            option.value = user._id;
+            option.textContent = user.username;
+            userSelect.appendChild(option);
+          });
+        })
+        .catch((error) => {
+          console.error("Error fetching users:", error);
+        });
     </script>
   </body>
 </html>

@@ -4,15 +4,16 @@ const Group=require('../models/groupModel');
 
 const router=express.Router();
 
-exports.getAllUsers=async (req,res)=>{
-    try{
-        const users=await User.find();
-        res.status(200).json({message:'All users',users});
-    }catch(err){
-        console.error('Error fetching users:',err);
-        res.status(500).json({message:'Internal Server Errorr'});
+exports.getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find();
+        res.status(200).json(users);
+    } catch (err) {
+        console.error('Error fetching users:', err);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
-}
+};
+
 
 
 exports.getAllUsersInGroup=async (req,res)=>{
@@ -37,16 +38,15 @@ exports.getAllUsersInGroup=async (req,res)=>{
 }
 
 
-exports.getUserGroups=async(req,res)=>{
+exports.getUserGroups = async (req, res) => {
     console.log("Fetching user groups");
-    const userId=req.user.id;
-    try{
-        const groups=await Group.find({members:userId});
-        const users=await User.find({
-            _id:{$ne:userId}
-        });
-        res.json({groups,users});
-    }catch(err){
-        res.status(500).json({error:err.message});
+    const userId = req.user.id;
+    try {
+        const groups = await Group.find({ members: userId });
+        res.status(200).json(groups);
+    } catch (err) {
+        console.error('Error fetching user groups:', err);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
-}
+};
+
