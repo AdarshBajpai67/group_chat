@@ -43,6 +43,7 @@ exports.getUserGroups = async (req, res) => {
     const userId = req.user.id;
     try {
         const groups = await Group.find({ members: userId });
+        // console.log('Fetched groups: ', groups);
         res.status(200).json(groups);
     } catch (err) {
         console.error('Error fetching user groups:', err);

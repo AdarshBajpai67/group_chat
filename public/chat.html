@@ -40,6 +40,7 @@
         border-radius: 3px;
         outline: none;
         color: #fff;
+        cursor: pointer;
       }
       #messages {
         list-style-type: none;
@@ -61,6 +62,10 @@
         padding: 0.5rem;
         border-radius: 4px;
       }
+      #selected-info {
+        font-weight: bold;
+        margin: 1rem 0;
+      }
     </style>
   </head>
   <body>
@@ -76,9 +81,10 @@
         <option value="">Select a user</option>
       </select>
     </div>
+    <div id="selected-info"></div>
     <ul id="messages"></ul>
     <form id="form" action="">
-      <input id="input" autocomplete="off" />
+      <input id="input" autocomplete="off" placeholder="Type a message..." />
       <button type="submit">Send</button>
       <button type="button" id="toggle-btn">Disconnect</button>
     </form>
@@ -119,18 +125,24 @@
       const toggleBtn = document.getElementById("toggle-btn");
       const groupSelect = document.getElementById("groupSelect");
       const userSelect = document.getElementById("userSelect");
+      const selectedInfo = document.getElementById("selected-info");
+
+      socket.on("connect", () => {
+        console.log("Socket connected:", socket.id);
+      });
 
       form.addEventListener("submit", function (e) {
         e.preventDefault();
-        if (input.value) {
+        if (input.value.trim() !== "") {
           if (selectedGroup || selectedUser) {
+            console.log("Sending message after pressing Submit:", input.value);
             socket.emit(
               "chat message",
               input.value,
               `${socket.id}-${counter++}`,
               (error) => {
                 if (error) {
-                  console.error(error);
+                  console.error("Error Emitting Message", error);
                   alert("Error sending message: " + error);
                 } else {
                   input.value = "";
@@ -152,41 +164,46 @@
         }
       });
 
-      socket.on("chat message", function (msg, clientOffset) {
-        const currentCounter = counter++;
-        if (currentCounter == clientOffset) {
-          console.log("Duplicated message detected");
-          return;
-        }
-        const item = document.createElement("li");
-        item.textContent = msg;
-        messages.appendChild(item);
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-
-      socket.on("disconnect", () => {
-        console.log("User disconnected");
-      });
-
-      function selectGroup(groupId) {
+      function handleGroupSelection(groupId, groupName) {
         selectedGroup = groupId;
-        selectedUser = null; // Clear the selected user if a group is selected
+        selectedUser = null;
+        userSelect.value = "";
+        selectedInfo.textContent = `Group Selected: ${groupName}`;
         console.log(`Group Selected: ${groupId}`);
+        updateMessageList();
       }
 
-      function selectUser(userId) {
+      function handleUserSelection(userId, userName) {
         selectedUser = userId;
-        selectedGroup = null; //Clear the selected group if a user is selected
+        selectedGroup = null;
+        groupSelect.value = "";
+        selectedInfo.textContent = `User Selected: ${userName}`;
         console.log(`User Selected: ${userId}`);
+        updateMessageList();
       }
 
       groupSelect.addEventListener("change", function () {
         const selectedGroupId = groupSelect.value;
+        const selectedGroupName =
+          groupSelect.options[groupSelect.selectedIndex].text;
+        console.log("Selected Group1:", groupSelect);
+        console.log("Selected Group2:", groupSelect.options);
+        console.log(
+          "Selected Group3:",
+          groupSelect.options[groupSelect.selectedIndex]
+        );
+        console.log(
+          "Selected Group4:",
+          groupSelect.options[groupSelect.selectedIndex].text
+        );
+
         if (selectedGroupId) {
-          selectGroup(selectedGroupId);
+          handleGroupSelection(selectedGroupId, selectedGroupName);
           socket.emit("select group", selectedGroupId, (error) => {
             if (error) {
               alert("Error: " + error);
+            } else {
+              updateMessageList();
             }
           });
         }
@@ -194,14 +211,100 @@
 
       userSelect.addEventListener("change", function () {
         const selectedUserId = userSelect.value;
+        const selectedUserName =
+          userSelect.options[userSelect.selectedIndex].text;
+        console.log("Selected User0:", userSelect.value);
+        console.log("Selected User1:", userSelect);
+        console.log("Selected User2:", userSelect.options);
+        console.log(
+          "Selected User3:",
+          userSelect.options[userSelect.selectedIndex]
+        );
+        console.log(
+          "Selected User4:",
+          userSelect.options[userSelect.selectedIndex].text
+        );
         if (selectedUserId) {
-          selectUser(selectedUserId);
+          handleUserSelection(selectedUserId, selectedUserName);
           socket.emit("select user", selectedUserId, (error) => {
             if (error) {
               alert("Error: " + error);
+            } else {
+              updateMessageList();
             }
           });
         }
+      });
+
+      function updateMessageList() {
+        messages.innerHTML = "";
+
+        let eventType = selectedGroup
+          ? "fetch group messages"
+          : selectedUser
+          ? "fetch user messages"
+          : null;
+
+        console.log("Event type for fetching message:", eventType);
+
+        if (eventType) {
+          socket.emit(
+            eventType,
+            selectedGroup || selectedUser,
+            (error, fetchMessages) => {
+              if (error) {
+                console.error(
+                  "Error fetching messages and updating message:",
+                  error
+                );
+                alert("Error: " + error);
+              } else {
+                if (fetchMessages && Array.isArray(fetchMessages)) {
+                  if (fetchMessages.length === 0) {
+                    console.log(
+                      "No messages to display as fetchMessages is empty"
+                    );
+                    messages.innerHTML = "<li>No messages to display</li>";
+                  } else {
+                    console.log("Messages fetched from server:", fetchMessages);
+                    fetchMessages.forEach(({ message, senderId }) => {
+                      const item = document.createElement("li");
+                      item.textContent = `${senderId}: ${message}`;
+                      messages.appendChild(item);
+                    });
+                    window.scrollTo(0, document.body.scrollHeight);
+                  }
+                } else {
+                  console.log("No messages to display");
+                  messages.innerHTML = "<li>No messages to display</li>";
+                }
+              }
+            }
+          );
+        }
+      }
+
+      socket.on("chat message", function (msg, clientOffset) {
+        console.log("Message received from server and displayed:", msg);
+        try {
+          if (
+            (selectedGroup && clientOffset.startsWith(socket.id)) ||
+            (selectedUser && clientOffset.startsWith(socket.id))
+          ) {
+            const item = document.createElement("li");
+            item.textContent = msg;
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+          } else {
+            console.log("Message received but not displayed:", msg);
+          }
+        } catch (error) {
+          console.log("Error in chat message event:", error);
+        }
+      });
+
+      socket.on("disconnect", () => {
+        console.log("User disconnected");
       });
 
       fetch("/user/getUserGroups", {
@@ -218,6 +321,10 @@
           return response.json();
         })
         .then((groups) => {
+          console.log("Groups fetched from API:", groups);
+          if (groups.length === 0) {
+            alert("You are not a member of any group.");
+          }
           groups.forEach((group) => {
             const option = document.createElement("option");
             option.value = group._id;

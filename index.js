@@ -134,6 +134,14 @@ async function main() {
         console.log(
           `Group Selected: ${group.name}, socket.selectedGroup: ${socket.selectedGroup}`
         );
+        socket.emit("fetch group messages", groupId, (error, messages) => {
+          if (error) {
+            console.error("Error fetching group messages:", error);
+          } else {
+            console.log("Messages Fetched: ", messages);
+            io.to(socket.id).emit("display messages", messages);
+          }
+        });
         callback();
       } catch (error) {
         callback(error.message);
@@ -149,6 +157,14 @@ async function main() {
         console.log(
           `User Selected: ${user.username}, socket.selectedUser: ${socket.selectedUser}`
         );
+        socket.emit("fetch user messages", userId, (error, messages) => {
+          if (error) {
+            console.error("Error fetching user messages:", error);
+          } else {
+            console.log("Messages Fetched: ", messages);
+            io.to(socket.id).emit("display messages", messages);
+          }
+        });
         callback();
       } catch (error) {
         callback(error.message);
@@ -160,6 +176,8 @@ async function main() {
         callback = () => {};
       }
 
+      console.log("Message received:", msg, clientOffset);
+
       try {
         if (socket.selectedGroup) {
           const result = await db.run(
@@ -170,6 +188,9 @@ async function main() {
             socket.user.id
           );
           io.to(socket.selectedGroup).emit("chat message", msg, clientOffset);
+          console.log(
+            `Message saved and sent to group ${socket.selectedGroup}: ${msg}`
+          );
         } else if (socket.selectedUser) {
           const result = await db.run(
             "INSERT INTO messages (message, client_offset, receiver_id, sender_id) VALUES (?, ?, ?, ?)",
@@ -179,12 +200,63 @@ async function main() {
             socket.user.id
           );
           io.to(socket.selectedUser).emit("chat message", msg, clientOffset);
+          console.log(
+            `Message saved and sent to user ${socket.selectedUser}: ${msg}`
+          );
         } else {
           throw new Error("No group or user selected.");
         }
         callback();
       } catch (error) {
         console.error("Error inserting message into DB:", error.message);
+        callback(error.message);
+      }
+    });
+
+    socket.on("fetch group messages", async (groupId, callback) => {
+      try {
+        const group = await validateAndFetch("group", groupId);
+        const messages = await db.all(
+          "SELECT message,sender_id FROM messages WHERE groupId = ?",
+          groupId
+        );
+        console.log("Group Messages:", messages);
+        callback(
+          null,
+          messages.map((row) => ({
+            message: row.message,
+            senderId: row.sender_id,
+          }))
+
+        );
+      } catch (error) {
+        console.error("Error fetching group messages:", error.message);
+        callback(error.message);
+      }
+    });
+
+    socket.on("fetch user messages", async (userId, callback) => {
+      try {
+        const user = await validateAndFetch("user", userId);
+        console.log("Fetching sender and receiver Id's :", userId, socket.user.id);
+        const messages = await db.all(
+          "SELECT message,sender_id FROM messages WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)",
+          userId,
+          socket.user.id,
+          socket.user.id,
+          userId
+        );
+        console.log("User Messages:", messages); 
+        callback(
+          null,
+          messages.map((row) => ({
+            message: row.message,
+            senderId: row.sender_id,
+          })
+          )
+        );
+      } catch (error) {
+        console.error("Error fetching user messages:", error.message);
         callback(error.message);
       }
     });
