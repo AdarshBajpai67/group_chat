@@ -1,5 +1,39 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Socket.IO chat</title>
+    <link rel="stylesheet" href="chatStyles.css" />
+</head>
+<body>
+    <div id="groups">
+        <label for="groupSelect">Groups:</label>
+        <select id="groupSelect">
+            <option value="">Select a group</option>
+        </select>
+    </div>
+    <div id="direct-messages">
+        <label for="userSelect">Direct Messages:</label>
+        <select id="userSelect">
+            <option value="">Select a user</option>
+        </select>
+    </div>
+    <div id="selected-info"></div>
+    <ul id="messages"></ul>
+    <form id="form" action="">
+        <input id="input" autocomplete="off" placeholder="Type a message..." />
+        <button type="submit">Send</button>
+        <button type="button" id="toggle-btn">Disconnect</button>
+    </form>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="chatScripts.js"></script>
+</body>
+</html>
+
+
+
+<!-- <!DOCTYPE html>
+<html>
   <head>
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
     <title>Socket.IO chat</title>
@@ -186,19 +220,21 @@
         const selectedGroupId = groupSelect.value;
         const selectedGroupName =
           groupSelect.options[groupSelect.selectedIndex].text;
-        console.log("Selected Group1:", groupSelect);
-        console.log("Selected Group2:", groupSelect.options);
-        console.log(
-          "Selected Group3:",
-          groupSelect.options[groupSelect.selectedIndex]
-        );
-        console.log(
-          "Selected Group4:",
-          groupSelect.options[groupSelect.selectedIndex].text
-        );
+        // console.log("Selected Group1:", groupSelect);
+        // console.log("Selected Group2:", groupSelect.options);
+        // console.log(
+        //   "Selected Group3:",
+        //   groupSelect.options[groupSelect.selectedIndex]
+        // );
+        // console.log(
+        //   "Selected Group4:",
+        //   groupSelect.options[groupSelect.selectedIndex].text
+        // );
 
         if (selectedGroupId) {
           handleGroupSelection(selectedGroupId, selectedGroupName);
+          console.log("Selected Group (change event listener):", selectedGroupId, ' with name:', selectedGroupName);
+
           socket.emit("select group", selectedGroupId, (error) => {
             if (error) {
               alert("Error: " + error);
@@ -213,19 +249,20 @@
         const selectedUserId = userSelect.value;
         const selectedUserName =
           userSelect.options[userSelect.selectedIndex].text;
-        console.log("Selected User0:", userSelect.value);
-        console.log("Selected User1:", userSelect);
-        console.log("Selected User2:", userSelect.options);
-        console.log(
-          "Selected User3:",
-          userSelect.options[userSelect.selectedIndex]
-        );
-        console.log(
-          "Selected User4:",
-          userSelect.options[userSelect.selectedIndex].text
-        );
+        // console.log("Selected User0:", userSelect.value);
+        // console.log("Selected User1:", userSelect);
+        // console.log("Selected User2:", userSelect.options);
+        // console.log(
+        //   "Selected User3:",
+        //   userSelect.options[userSelect.selectedIndex]
+        // );
+        // console.log(
+        //   "Selected User4:",
+        //   userSelect.options[userSelect.selectedIndex].text
+        // );
         if (selectedUserId) {
           handleUserSelection(selectedUserId, selectedUserName);
+          // console.log("Selected User (change event listener):", selectedUserId);
           socket.emit("select user", selectedUserId, (error) => {
             if (error) {
               alert("Error: " + error);
@@ -245,42 +282,67 @@
           ? "fetch user messages"
           : null;
 
-        console.log("Event type for fetching message:", eventType);
+        // console.log("Event type for fetching message:", eventType);
 
         if (eventType) {
           socket.emit(
             eventType,
-            selectedGroup || selectedUser,
-            (error, fetchMessages) => {
-              if (error) {
-                console.error(
-                  "Error fetching messages and updating message:",
-                  error
-                );
-                alert("Error: " + error);
-              } else {
-                if (fetchMessages && Array.isArray(fetchMessages)) {
-                  if (fetchMessages.length === 0) {
-                    console.log(
-                      "No messages to display as fetchMessages is empty"
-                    );
-                    messages.innerHTML = "<li>No messages to display</li>";
-                  } else {
-                    console.log("Messages fetched from server:", fetchMessages);
-                    fetchMessages.forEach(({ message, senderId }) => {
-                      const item = document.createElement("li");
-                      item.textContent = `${senderId}: ${message}`;
-                      messages.appendChild(item);
-                    });
-                    window.scrollTo(0, document.body.scrollHeight);
-                  }
-                } else {
-                  console.log("No messages to display");
-                  messages.innerHTML = "<li>No messages to display</li>";
-                }
-              }
-            }
+            selectedGroup || selectedUser
           );
+          
+          socket.on("fetched group messages", function (fetchMessages) {
+            console.log("Fetched group messages:", fetchMessages);
+            if (fetchMessages && Array.isArray(fetchMessages)) {
+              if (fetchMessages.length === 0) {
+                console.log(
+                  "No messages to display as fetchMessages is empty"
+                );
+                messages.innerHTML = "<li>No messages to display</li>";
+              } else {
+                // console.log("Messages fetched from server:", fetchMessages);
+                fetchMessages.forEach(({ message, senderId }) => {
+                  const item = document.createElement("li");
+                  item.textContent = `${senderId}: ${message}`;
+                  messages.appendChild(item);
+                });
+                window.scrollTo(0, document.body.scrollHeight);
+              }
+            } else {
+              console.log(
+                "No messages to display as fetchMessages is null or not an array 2"
+              );
+              messages.innerHTML = "<li>No messages to display</li>";
+            }
+          });
+
+          socket.on("fetched user messages", function (fetchMessages) {
+            console.log("Fetched user messages:", fetchMessages);
+            
+              if (fetchMessages && Array.isArray(fetchMessages)) {
+                if (fetchMessages.length === 0) {
+                  console.log(
+                    "No messages to display as fetchMessages is empty"
+                  );
+                  messages.innerHTML = "<li>No messages to display</li>";
+                } else {
+                  // console.log("Messages fetched from server:", fetchMessages);
+                  fetchMessages.forEach(({ message, senderId }) => {
+                    const item = document.createElement("li");
+                    item.textContent = message;
+                    messages.appendChild(item);
+                  });
+                  window.scrollTo(0, document.body.scrollHeight);
+                }
+              } else {
+                console.log(
+                  "No messages to display as fetchMessages is null or not an array 2"
+                );
+                messages.innerHTML = "<li>No messages to display</li>";
+            }
+          });
+        } else {
+          console.log("No messages to display as eventType is null 3");
+          messages.innerHTML = "<li>No messages to display</li>";
         }
       }
 
@@ -362,4 +424,4 @@
         });
     </script>
   </body>
-</html>
+</html> -->

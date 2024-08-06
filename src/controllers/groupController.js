@@ -91,6 +91,7 @@ exports.updateGroupDescription = async (req, res) => {
         if(!groupID){
             return res.status(400).json({message:'Group does not exist'});
         }
+        const group=await Group.findById(groupID);
 
         if(group.admin!==req.user._id){
             return res.status(401).json({message:'You are not authorized to update the group'});

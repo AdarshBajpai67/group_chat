@@ -19,7 +19,7 @@ exports.getAllUsers = async (req, res) => {
 exports.getAllUsersInGroup=async (req,res)=>{
     const {groupID}=req.body;
     try{
-        const group=await Group.findById(groupID);
+        const group=await Group.findById(groupID).populate('members','username userDigitalProfilePhoto');
         if(!group){
             return res.status(400).json({message:'Group does not exist'});
         }

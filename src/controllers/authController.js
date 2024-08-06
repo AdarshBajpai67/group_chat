@@ -51,3 +51,54 @@ exports.loginUser=async(req,res)=>{
         res.status(500).json({message: 'Internal Server Error'});
     }
 };
+
+exports.updateUserDetails=async(req,res)=>{
+    const {username,password,userDigitalProfilePhoto}=req.body;
+    try{
+        const user=await User.findById(req.user.id);
+        // console.log('user: ',user);
+        if(!user){
+            return res.status(404).json({message: 'User not found'});
+        }
+        if (username && username !== user.username) {
+          const existingUser = await User.findOne({ username: username });
+          if (existingUser) {
+            return res.status(400).json({ message: 'Username already exists' });
+          }
+          user.username = username;
+        }
+        if (password) {
+          user.password = await bcrypt.hash(password, 10);
+        }
+        if (userDigitalProfilePhoto) {
+          user.userDigitalProfilePhoto = userDigitalProfilePhoto;
+        }else if(!userDigitalProfilePhoto){
+            user.userDigitalProfilePhoto=user.avatar;
+        }
+        await user.save();
+        res.status(200).json({ message: 'User details updated successfully', user });
+    }
+    catch(err){
+        console.error('Error updating user details:',err);
+        res.status(500).json({message: 'Internal Server Error'});
+    }
+}
+
+exports.deleteUser=async(req,res)=>{
+    // const {username}=req.body;
+    try{
+        // const user=await User.findOne({username:username});
+        const user=await User.findByIdAndDelete(req.user.id);
+        if(!user){
+            return res.status(404).json({message: 'User not found'});
+        }
+        // await user.remove();
+        // await User.deleteOne({ username: username });
+        res.status(200).json({message: 'User deleted successfully'});
+    }
+    catch(err){
+        console.error('Error deleting user:',err);
+        res.status(500).json({message: 'Internal Server Error'});
+    }
+}
+            

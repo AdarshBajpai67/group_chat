@@ -1,11 +1,19 @@
-const express=require('express');
-const authController=require('../controllers/authController');
-const messageController=require('../controllers/messageController');
+// const express = require("express");
+// const authMiddleware = require("../middlewares/authMiddleware");
+// const messageController = require("../controllers/messageController");
 
-const router=express.Router();
+// const router = express.Router();
 
-router.get('/getGroupMessages',authController,messageController.getGroupMessages);
+// router.get(
+//   "/getGroupMessages",
+//   authMiddleware,
+//   messageController.getGroupMessages
+// );
 
-router.get('/getUserMessages',authController,messageController.getUserMessages);
+// router.get(
+//   "/getUserMessages/:userId",
+//   authMiddleware,
+//   messageController.getUserMessages
+// );
 
-module.exports=router;
+// module.exports = router;
